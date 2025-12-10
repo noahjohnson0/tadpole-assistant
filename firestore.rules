@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read their own document
+      allow read: if isOwner(userId);
+      
+      // Users can create their own document (during signup)
+      allow create: if isOwner(userId) && 
+                      request.resource.data.email is string &&
+                      request.resource.data.email == request.auth.token.email;
+      
+      // Users can update their own document
+      allow update: if isOwner(userId) && 
+                      (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email']) ||
+                       request.resource.data.email == resource.data.email);
+      
+      // Users can delete their own document
+      allow delete: if isOwner(userId);
+      
+      // Days subcollection
+      match /days/{dayId} {
+        // Users can read their own days
+        allow read: if isOwner(userId);
+        
+        // Users can create days for themselves
+        allow create: if isOwner(userId) &&
+                        request.resource.data.date is timestamp &&
+                        request.resource.data.events is list;
+        
+        // Users can update their own days
+        // Allow updates as long as:
+        // 1. User owns the document
+        // 2. If date is being set, it must be a timestamp
+        // 3. If events is being set, it must be a list
+        allow update: if isOwner(userId) &&
+                        (!('date' in request.resource.data) || request.resource.data.date is timestamp) &&
+                        (!('events' in request.resource.data) || request.resource.data.events is list);
+        
+        // Users can delete their own days
+        allow delete: if isOwner(userId);
+      }
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

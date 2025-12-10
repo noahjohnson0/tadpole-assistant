@@ -1,0 +1,61 @@
+# Cursor Rules for Assistant Project
+
+## Firebase & React Firebase Hooks
+
+### Preferred Approach
+- **Always use `react-firebase-hooks` for Firebase operations in React components**
+- Use hooks from `react-firebase-hooks` instead of manual Firebase SDK calls in components
+- Keep Firebase SDK direct calls only in utility functions (`src/lib/`) when hooks aren't suitable
+
+### Available Hooks
+- `useAuthState` - For authentication state (already wrapped in `useAuth` hook)
+- `useDocument` - For single Firestore document queries
+- `useCollection` - For Firestore collection queries
+- `useCollectionData` - For Firestore collection queries with automatic data transformation
+
+### Authentication
+- Use `useAuth()` hook from `src/hooks/useAuth.ts` for authentication state
+- Use `signIn()`, `signUp()`, and `signOut()` functions from `src/hooks/useAuth.ts` for auth operations
+- Firebase Auth is initialized in `src/lib/firebase.ts` and exported as `auth`
+
+### File Organization
+- **Hooks**: Place all custom hooks in `src/hooks/` directory
+- **Firebase Config**: Keep Firebase initialization in `src/lib/firebase.ts`
+- **Firebase Utilities**: Keep Firebase utility functions in `src/lib/` directory
+- **Components**: Keep React components in `src/components/` directory
+
+### Example Usage Patterns
+
+```typescript
+// ✅ Good - Using react-firebase-hooks
+import { useDocument } from 'react-firebase-hooks/firestore';
+import { doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+function MyComponent() {
+  const [value, loading, error] = useDocument(doc(db, 'collection', 'id'));
+  // ...
+}
+
+// ❌ Avoid - Manual Firebase calls in components
+function MyComponent() {
+  useEffect(() => {
+    getDoc(doc(db, 'collection', 'id')).then(...);
+  }, []);
+}
+```
+
+### Component Guidelines
+- Use shadcn/ui components when possible (don't manually create components)
+- Install shadcn components using the CLI tool
+- Keep components in `src/components/ui/` for shadcn components
+- Keep custom components in `src/components/` directory
+
+### TypeScript
+- Always use TypeScript types from `src/types/` directory
+- Import Firebase types from `firebase/firestore` and `firebase/auth` as needed
+
+### Firestore Rules Deployment
+- **Always deploy Firestore rules after making changes to `firestore.rules`**
+- After modifying `firestore.rules`, immediately run `firebase deploy --only firestore:rules`
+- Do not skip this step - rule changes are not active until deployed
