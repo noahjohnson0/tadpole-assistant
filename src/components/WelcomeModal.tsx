@@ -2,6 +2,7 @@
 
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -16,8 +17,14 @@ interface WelcomeModalProps {
 }
 
 export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      onClose();
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-2xl">Welcome to Tadpole! 🐸</DialogTitle>
@@ -77,9 +84,11 @@ export function WelcomeModal({ open, onClose }: WelcomeModalProps) {
         </div>
 
         <div className="flex justify-end">
-          <Button onClick={onClose} className="w-full sm:w-auto">
-            Get Started
-          </Button>
+          <DialogClose asChild>
+            <Button className="w-full sm:w-auto">
+              Get Started
+            </Button>
+          </DialogClose>
         </div>
       </DialogContent>
     </Dialog>
