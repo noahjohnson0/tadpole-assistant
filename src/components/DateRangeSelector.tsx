@@ -96,25 +96,25 @@ export function DateRangeSelector({
   };
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center gap-2 flex-1 min-w-0">
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 flex-shrink-0"
           onClick={goToPrevious}
         >
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <div className="flex flex-col min-w-[200px]">
-          <span className="text-sm font-medium">
+        <div className="flex flex-col min-w-0 flex-1">
+          <span className="text-sm font-medium truncate">
             {rangeType === 'day'
               ? isToday()
                 ? "Today's Activities"
                 : 'Activities'
               : 'Week View'}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground truncate">
             {rangeType === 'day'
               ? formatDate(selectedDate)
               : formatWeekRange(selectedDate)}
@@ -123,7 +123,7 @@ export function DateRangeSelector({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 flex-shrink-0"
           onClick={goToNext}
           disabled={rangeType === 'day' && isToday()}
         >
@@ -132,18 +132,20 @@ export function DateRangeSelector({
         <Button
           variant="outline"
           size="sm"
-          className="h-8"
+          className="h-8 flex-shrink-0"
           onClick={goToToday}
         >
           Today
         </Button>
       </div>
-      <Tabs value={rangeType} onValueChange={(value) => onRangeTypeChange(value as DateRangeType)}>
-        <TabsList>
-          <TabsTrigger value="day">Day</TabsTrigger>
-          <TabsTrigger value="week">Week</TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex-shrink-0">
+        <Tabs value={rangeType} onValueChange={(value) => onRangeTypeChange(value as DateRangeType)}>
+          <TabsList>
+            <TabsTrigger value="day">Day</TabsTrigger>
+            <TabsTrigger value="week">Week</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
     </div>
   );
 }
