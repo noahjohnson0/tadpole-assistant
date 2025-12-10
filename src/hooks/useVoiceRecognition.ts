@@ -4,9 +4,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { parseActivity } from '@/lib/activity-parser';
 import { getSpeechRecognition, createSpeechRecognition } from '@/lib/speech-recognition';
 
+import { TrackedActivity } from '@/types/tracked-activity';
+
 interface UseVoiceRecognitionOptions {
     onActivityDetected: (activity: string, quantity?: string, unit?: string, transcribedPhrase?: string) => void;
     isActivityActive?: (activityName: string) => boolean;
+    trackedActivities?: TrackedActivity[];
 }
 
 interface VoiceState {
@@ -20,6 +23,7 @@ interface VoiceState {
 export function useVoiceRecognition({
     onActivityDetected,
     isActivityActive,
+    trackedActivities,
 }: UseVoiceRecognitionOptions) {
     const [state, setState] = useState<VoiceState>({
         isListening: false,
@@ -32,12 +36,13 @@ export function useVoiceRecognition({
     const recognitionRef = useRef<SpeechRecognition | null>(null);
     const transcriptBufferRef = useRef<string>('');
     const isStartedRef = useRef(false);
+    const shouldRestartRef = useRef(false);
 
     const handleActivityParsing = useCallback(
         (text: string) => {
-            parseActivity(text, onActivityDetected, isActivityActive);
+            parseActivity(text, onActivityDetected, isActivityActive, trackedActivities);
         },
-        [onActivityDetected, isActivityActive]
+        [onActivityDetected, isActivityActive, trackedActivities]
     );
 
     const startRecognition = useCallback(() => {
@@ -104,6 +109,21 @@ export function useVoiceRecognition({
                     return;
                 }
 
+                // Handle "aborted" error - usually happens when recognition is stopped prematurely
+                // This can occur during page transitions, modal openings, or component re-renders
+                if (event.error === 'aborted') {
+                    // Don't set error state for aborted - it's usually transient
+                    // Mark that we should restart and reset the started flag
+                    shouldRestartRef.current = true;
+                    isStartedRef.current = false;
+                    setState((prev) => ({
+                        ...prev,
+                        isStarted: false,
+                        isListening: false,
+                    }));
+                    return;
+                }
+
                 if (event.error !== 'no-speech') {
                     setState((prev) => ({
                         ...prev,
@@ -112,14 +132,17 @@ export function useVoiceRecognition({
                 }
             },
             onEnd: () => {
-                if (isStartedRef.current) {
+                // Restart if we were supposed to be listening, or if we were aborted and need to restart
+                if (isStartedRef.current || shouldRestartRef.current) {
+                    shouldRestartRef.current = false;
                     setTimeout(() => {
                         try {
-                            if (recognitionRef.current && isStartedRef.current) {
+                            if (recognitionRef.current && (isStartedRef.current || shouldRestartRef.current)) {
                                 recognitionRef.current.start();
                             }
                         } catch (e) {
                             isStartedRef.current = false;
+                            shouldRestartRef.current = false;
                             setState((prev) => ({
                                 ...prev,
                                 isListening: false,

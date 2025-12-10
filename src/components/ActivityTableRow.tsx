@@ -47,9 +47,14 @@ export function ActivityTableRow({
   onKeyDown,
   formatTime,
   formatRepsDuration,
+  isNew = false,
 }: ActivityTableRowProps) {
   return (
-    <TableRow key={activity.id} data-activity-id={activity.id}>
+    <TableRow 
+      key={activity.id} 
+      data-activity-id={activity.id}
+      className={isNew ? 'activity-pop' : ''}
+    >
       <TableCell className="font-medium">
         {isEditing && editValues ? (
           <Input

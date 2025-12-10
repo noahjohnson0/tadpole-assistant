@@ -2,7 +2,10 @@ import { useState, useRef } from 'react';
 import { Activity } from '@/types/activity';
 import { useActivities } from '@/context/ActivityContext';
 import { useAuth } from '@/hooks/useAuth';
+import { useTrackedActivities } from '@/hooks/useTrackedActivities';
+import { normalizeActivityName, isValidTrackedActivity } from '@/lib/activities';
 import { dateToDateString, updateEventInDay, removeEventFromDay, getDayByDate } from '@/lib/days';
+import { toast } from 'sonner';
 
 interface EditValues {
   name: string;
@@ -17,6 +20,7 @@ export function useActivityEdit(
 ) {
   const { removeActivity, updateActivity } = useActivities();
   const { user } = useAuth();
+  const { trackedActivities } = useTrackedActivities();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<EditValues | null>(null);
@@ -31,11 +35,17 @@ export function useActivityEdit(
 
       const dateString = dateToDateString(selectedDate);
 
-      // Use context function for today, direct function for other dates
-      if (isToday()) {
-        await removeActivity(activity);
-      } else {
-        await removeEventFromDay(user.uid, dateString, activity);
+      try {
+        // Use context function for today, direct function for other dates
+        if (isToday()) {
+          await removeActivity(activity);
+        } else {
+          await removeEventFromDay(user.uid, dateString, activity);
+          toast.success('Activity deleted successfully');
+        }
+      } catch (error) {
+        toast.error('Failed to delete activity');
+        throw error;
       }
 
       setPendingDeleteId(null);
@@ -80,9 +90,23 @@ export function useActivityEdit(
   const handleSave = async (oldActivity: Activity) => {
     if (!editValues || !editingId || !user) return;
 
+    // Normalize activity name to match canonical name from tracked activities
+    const normalizedName = normalizeActivityName(editValues.name.trim(), trackedActivities);
+
+    // Validate that the normalized name exists in tracked activities
+    if (trackedActivities.length > 0) {
+      if (!isValidTrackedActivity(normalizedName, trackedActivities)) {
+        // Activity name doesn't match any tracked activity, reject it
+        console.warn(`Activity "${editValues.name}" (normalized to "${normalizedName}") does not match any tracked activity. Rejecting update.`);
+        setEditingId(null);
+        setEditValues(null);
+        return;
+      }
+    }
+
     const updatedActivity: Activity = {
       ...oldActivity,
-      name: editValues.name.trim(),
+      name: normalizedName,
       quantity: editValues.quantity.trim() || undefined,
       unit: editValues.unit.trim() || undefined,
     };

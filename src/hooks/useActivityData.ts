@@ -70,6 +70,8 @@ export function useActivityData(selectedDate: Date, rangeType: DateRangeType) {
   const previousActivityIdsRef = useRef<Set<string>>(new Set());
   const previousWeekActivityIdsRef = useRef<Map<string, Set<string>>>(new Map());
   const weekUnsubscribesRef = useRef<Unsubscribe[]>([]);
+  const weekInitialLoadRef = useRef<boolean>(true);
+  const currentWeekKeyRef = useRef<string>('');
 
   // Real-time listener for day view
   const dateString = dateToDateString(selectedDate);
@@ -134,22 +136,32 @@ export function useActivityData(selectedDate: Date, rangeType: DateRangeType) {
       weekUnsubscribesRef.current = [];
       setWeekDays([]);
       previousWeekActivityIdsRef.current = new Map();
+      weekInitialLoadRef.current = true;
       return;
     }
 
-    // Clean up existing listeners
-    weekUnsubscribesRef.current.forEach((unsubscribe) => unsubscribe());
-    weekUnsubscribesRef.current = [];
-
     const startOfWeek = getStartOfWeek(selectedDate);
     const weekDates = getWeekDays(startOfWeek);
+    const weekKey = weekDates.map(dateToDateString).join(',');
+    
+    // Check if this is a new week - reset tracking if so
+    if (weekKey !== currentWeekKeyRef.current) {
+      currentWeekKeyRef.current = weekKey;
+      previousWeekActivityIdsRef.current = new Map();
+      weekInitialLoadRef.current = true;
+      
+      // Clean up existing listeners
+      weekUnsubscribesRef.current.forEach((unsubscribe) => unsubscribe());
+      weekUnsubscribesRef.current = [];
+    }
+
     const daysData: (Day | null)[] = new Array(7).fill(null);
-    const loadedRef = { count: 0 };
-    let isInitialLoad = true;
+    const loadedCounts = new Map<string, number>();
 
     const updateWeekDays = () => {
       const days: Day[] = [];
       const allNewActivityIds = new Map<string, Set<string>>();
+      let allLoaded = true;
 
       weekDates.forEach((date, index) => {
         const dateString = dateToDateString(date);
@@ -159,7 +171,7 @@ export function useActivityData(selectedDate: Date, rangeType: DateRangeType) {
           const currentActivityIds = new Set(dayData.events.map((e) => e.id));
           
           // Find newly added activities for this day (only after initial load)
-          if (!isInitialLoad) {
+          if (!weekInitialLoadRef.current) {
             const previousIds = previousWeekActivityIdsRef.current.get(dateString) || new Set();
             const newIds = new Set<string>();
             currentActivityIds.forEach((id) => {
@@ -176,43 +188,52 @@ export function useActivityData(selectedDate: Date, rangeType: DateRangeType) {
           days.push(dayData);
           previousWeekActivityIdsRef.current.set(dateString, currentActivityIds);
         } else {
+          // Check if we're still waiting for this day's data
+          if (!loadedCounts.has(dateString)) {
+            allLoaded = false;
+          }
+          
           // Create empty day entry
           days.push({
             id: dateString,
             date: date,
             events: [],
           });
-          if (!isInitialLoad) {
+          
+          if (!weekInitialLoadRef.current) {
             previousWeekActivityIdsRef.current.set(dateString, new Set());
           }
         }
       });
 
-      setWeekDays(days);
+      // Only update state if all days have been loaded at least once
+      if (allLoaded && days.length === 7) {
+        setWeekDays(days);
 
-      // Update new activity IDs set with all new IDs from all days
-      if (!isInitialLoad && allNewActivityIds.size > 0) {
-        const combinedNewIds = new Set<string>();
-        allNewActivityIds.forEach((ids, dateString) => {
-          ids.forEach((id) => {
-            combinedNewIds.add(`${dateString}-${id}`);
-          });
-        });
-        setNewActivityIds(combinedNewIds);
+        // Mark initial load as complete after first successful load
+        if (weekInitialLoadRef.current) {
+          weekInitialLoadRef.current = false;
+        } else {
+          // Update new activity IDs set with all new IDs from all days (after initial load)
+          if (allNewActivityIds.size > 0) {
+            const combinedNewIds = new Set<string>();
+            allNewActivityIds.forEach((ids, dateString) => {
+              ids.forEach((id) => {
+                combinedNewIds.add(`${dateString}-${id}`);
+              });
+            });
+            setNewActivityIds(combinedNewIds);
 
-        // Clear animation classes after animation completes
-        setTimeout(() => {
-          setNewActivityIds((prev) => {
-            const updated = new Set(prev);
-            combinedNewIds.forEach((id) => updated.delete(id));
-            return updated;
-          });
-        }, 600);
-      }
-
-      // Mark initial load as complete after first render
-      if (isInitialLoad && loadedRef.count === 7) {
-        isInitialLoad = false;
+            // Clear animation classes after animation completes
+            setTimeout(() => {
+              setNewActivityIds((prev) => {
+                const updated = new Set(prev);
+                combinedNewIds.forEach((id) => updated.delete(id));
+                return updated;
+              });
+            }, 600);
+          }
+        }
       }
     };
 
@@ -233,7 +254,7 @@ export function useActivityData(selectedDate: Date, rangeType: DateRangeType) {
               events: [],
             };
           }
-          loadedRef.count++;
+          loadedCounts.set(dateString, (loadedCounts.get(dateString) || 0) + 1);
           updateWeekDays();
         },
         (error) => {
@@ -243,7 +264,7 @@ export function useActivityData(selectedDate: Date, rangeType: DateRangeType) {
             date: date,
             events: [],
           };
-          loadedRef.count++;
+          loadedCounts.set(dateString, (loadedCounts.get(dateString) || 0) + 1);
           updateWeekDays();
         }
       );

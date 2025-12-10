@@ -3,13 +3,15 @@
 import { Activity } from '@/types/activity';
 import { Day } from '@/types/day';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { dateToDateString } from '@/lib/days';
 
 interface WeekViewProps {
   weekDays: Day[];
   loading: boolean;
+  newActivityIds?: Set<string>;
 }
 
-export function WeekView({ weekDays, loading }: WeekViewProps) {
+export function WeekView({ weekDays, loading, newActivityIds = new Set() }: WeekViewProps) {
   const formatDayName = (date: Date) => {
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -78,10 +80,15 @@ export function WeekView({ weekDays, loading }: WeekViewProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                {day.events.map((activity) => (
+                {day.events.map((activity) => {
+                  const dateString = dateToDateString(day.date);
+                  const activityKey = `${dateString}-${activity.id}`;
+                  const isNew = newActivityIds.has(activityKey);
+                  
+                  return (
                   <div
                     key={activity.id}
-                    className="px-2 py-2.5 border rounded-md"
+                    className={`px-2 py-2.5 border rounded-md ${isNew ? 'activity-pop' : ''}`}
                   >
                     <div className="font-medium text-sm">{activity.name}</div>
                     <div className="text-xs text-muted-foreground">
@@ -91,7 +98,8 @@ export function WeekView({ weekDays, loading }: WeekViewProps) {
                       {formatTime(activity.timestamp)}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>

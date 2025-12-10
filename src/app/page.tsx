@@ -4,10 +4,13 @@ import { useEffect, useState, useMemo } from 'react';
 import { VoiceAssistant } from "@/components/VoiceAssistant";
 import { ActivityTable } from "@/components/ActivityTable";
 import { Login } from "@/components/Login";
+import { WelcomeModal } from "@/components/WelcomeModal";
 import { useAuth } from "@/hooks/useAuth";
 import { signOut } from "@/hooks/useAuth";
+import { useUserData } from "@/hooks/useUserData";
 import { useActivities } from "@/context/ActivityContext";
 import { useVoice } from "@/context/VoiceContext";
+import { updateUser } from "@/lib/users";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TadpoleIcon } from "@/components/TadpoleIcon";
 import {
@@ -25,6 +28,7 @@ import Link from "next/link";
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
+  const { userData, loading: userDataLoading } = useUserData();
   const { lastAddedActivity } = useActivities();
   const { transcript, isSpeaking } = useVoice();
   const { setTheme, theme } = useTheme();
@@ -34,6 +38,7 @@ export default function Home() {
   const [showTranscript, setShowTranscript] = useState(false);
   const [transcriptAtSessionStart, setTranscriptAtSessionStart] = useState<string>('');
   const [previousIsSpeaking, setPreviousIsSpeaking] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
 
   // Get last few words from transcript (last 10 words)
   const getLastFewWords = (text: string, wordCount: number = 10): string => {
@@ -118,7 +123,29 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastAddedActivity]);
 
-  if (loading) {
+  // Show welcome modal for new users
+  useEffect(() => {
+    if (isAuthenticated && user && !userDataLoading && userData) {
+      // Show modal if user hasn't seen it yet
+      if (userData.hasSeenWelcomeModal === false) {
+        setShowWelcomeModal(true);
+      }
+    }
+  }, [isAuthenticated, user, userData, userDataLoading]);
+
+  // Handle welcome modal close - mark as seen
+  const handleWelcomeModalClose = async () => {
+    setShowWelcomeModal(false);
+    if (user && userData && userData.hasSeenWelcomeModal === false) {
+      try {
+        await updateUser(user.uid, { hasSeenWelcomeModal: true });
+      } catch (error) {
+        console.error('Error updating welcome modal status:', error);
+      }
+    }
+  };
+
+  if (loading || userDataLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>
@@ -231,6 +258,8 @@ export default function Home() {
 
         <ActivityTable />
       </main>
+
+      <WelcomeModal open={showWelcomeModal} onClose={handleWelcomeModalClose} />
     </div>
   );
 }

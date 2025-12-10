@@ -8,7 +8,6 @@ export const DEFAULT_ACTIVITIES: Omit<TrackedActivity, 'id'>[] = [
   { name: 'Walk', active: true, keywords: ['walk', 'walking', 'walked'] },
   { name: 'Sit-ups', active: true, keywords: ['situp', 'sit-up', 'sit ups', 'situps'] },
   { name: 'Squats', active: true, keywords: ['squat', 'squats'] },
-  { name: 'Exercise', active: true, keywords: ['exercise', 'exercised', 'workout'] },
 ];
 
 /**
@@ -65,4 +64,25 @@ export function normalizeActivityName(
 
   // No match found, return original name
   return activityName;
+}
+
+/**
+ * Validates that an activity name exists in the tracked activities list
+ * @param activityName - The activity name to validate
+ * @param trackedActivities - Array of tracked activities to check against
+ * @returns true if the activity name matches a tracked activity (exact match)
+ */
+export function isValidTrackedActivity(
+  activityName: string,
+  trackedActivities: TrackedActivity[]
+): boolean {
+  if (!activityName || trackedActivities.length === 0) {
+    return false;
+  }
+
+  const lowerActivityName = activityName.toLowerCase().trim();
+
+  return trackedActivities.some((tracked) =>
+    tracked.name.toLowerCase() === lowerActivityName
+  );
 }

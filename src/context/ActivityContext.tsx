@@ -5,8 +5,9 @@ import { Activity } from '@/types/activity';
 import { useAuth } from '@/hooks/useAuth';
 import { addEventToDay, removeEventFromDay, updateEventInDay, getTodayDateString, getDayByDate } from '@/lib/days';
 import { getUserById, createUser } from '@/lib/users';
-import { normalizeActivityName } from '@/lib/activities';
+import { normalizeActivityName, isValidTrackedActivity } from '@/lib/activities';
 import { TrackedActivity } from '@/types/tracked-activity';
+import { toast } from 'sonner';
 
 interface ActivityContextType {
   activities: Activity[];
@@ -119,6 +120,15 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
       // Normalize activity name to match canonical name from tracked activities
       const normalizedName = normalizeActivityName(name, trackedActivities);
 
+      // Validate that the normalized name exists in tracked activities
+      if (trackedActivities.length > 0) {
+        if (!isValidTrackedActivity(normalizedName, trackedActivities)) {
+          // Activity name doesn't match any tracked activity, reject it
+          console.warn(`Activity "${name}" (normalized to "${normalizedName}") does not match any tracked activity. Rejecting.`);
+          return;
+        }
+      }
+
       // Automatically set unit to "reps" for rep-based exercises if no unit is provided
       let finalUnit = unit;
       if (!finalUnit && quantity && shouldUseReps(normalizedName)) {
@@ -183,6 +193,15 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
       // Normalize activity name to match canonical name from tracked activities
       const normalizedName = normalizeActivityName(updatedActivity.name, trackedActivities);
 
+      // Validate that the normalized name exists in tracked activities
+      if (trackedActivities.length > 0) {
+        if (!isValidTrackedActivity(normalizedName, trackedActivities)) {
+          // Activity name doesn't match any tracked activity, reject it
+          console.warn(`Activity "${updatedActivity.name}" (normalized to "${normalizedName}") does not match any tracked activity. Rejecting update.`);
+          return;
+        }
+      }
+
       // Automatically set unit to "reps" for rep-based exercises if no unit is provided
       let finalUnit = updatedActivity.unit;
       if (!finalUnit && updatedActivity.quantity && shouldUseReps(normalizedName)) {
@@ -230,12 +249,14 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
         // Remove from Firestore
         const todayDateString = getTodayDateString();
         await removeEventFromDay(user.uid, todayDateString, activity);
+        toast.success('Activity deleted successfully');
       } catch (error) {
         console.error('Error removing activity from Firestore:', error);
         // Re-add to local state if removal failed
         setActivities((prev) => [activity, ...prev].sort((a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
         ));
+        toast.error('Failed to delete activity');
         throw error;
       }
     },

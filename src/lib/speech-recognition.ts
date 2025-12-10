@@ -12,7 +12,7 @@ export interface SpeechRecognitionHandlers {
 /**
  * Get the SpeechRecognition constructor from the browser
  */
-export function getSpeechRecognition(): typeof SpeechRecognition | null {
+export function getSpeechRecognition(): (typeof window.SpeechRecognition) | null {
     if (typeof window === 'undefined') {
         return null;
     }

@@ -46,9 +46,13 @@ export async function signUp(email: string, password: string) {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
     // Create user document in Firestore using the Firebase Auth UID
+    // Mark as new user (hasSeenWelcomeModal = false)
     try {
       await createUser(
-        { email: userCredential.user.email || email },
+        {
+          email: userCredential.user.email || email,
+          hasSeenWelcomeModal: false
+        },
         userCredential.user.uid
       );
     } catch (firestoreError: any) {

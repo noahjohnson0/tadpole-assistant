@@ -10,7 +10,7 @@ import { TadpoleIcon } from '@/components/TadpoleIcon';
 
 export function VoiceAssistant() {
     const { addActivity } = useActivities();
-    const { isActivityActive } = useTrackedActivities();
+    const { isActivityActive, trackedActivities } = useTrackedActivities();
     const { setTranscript, setIsSpeaking } = useVoice();
     const { isListening, transcript, isSpeaking, isStarted, error, startRecognition } =
         useVoiceRecognition({
@@ -20,6 +20,8 @@ export function VoiceAssistant() {
                     addActivity(name, quantity, unit, transcribedPhrase);
                 }
             },
+            isActivityActive,
+            trackedActivities,
         });
 
     // Update VoiceContext with transcript and speaking state

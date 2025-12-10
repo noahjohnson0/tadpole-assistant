@@ -38,6 +38,7 @@ function docToUser(docId: string, data: any): User {
     email: data.email,
     name: data.name || undefined,
     trackedActivities: data.trackedActivities || undefined,
+    hasSeenWelcomeModal: data.hasSeenWelcomeModal ?? false,
     createdAt: timestampToDate(data.createdAt),
     updatedAt: timestampToDate(data.updatedAt),
   };
@@ -108,6 +109,7 @@ export async function createUser(userData: UserData, userId?: string): Promise<U
       email: userData.email,
       name: userData.name || null,
       trackedActivities: userData.trackedActivities || null,
+      hasSeenWelcomeModal: userData.hasSeenWelcomeModal ?? false,
       createdAt: userData.createdAt ? Timestamp.fromDate(userData.createdAt) : now,
       updatedAt: userData.updatedAt ? Timestamp.fromDate(userData.updatedAt) : now,
     };
@@ -133,6 +135,7 @@ export async function updateUser(userId: string, userData: Partial<UserData>): P
     if (userData.email !== undefined) updateData.email = userData.email;
     if (userData.name !== undefined) updateData.name = userData.name || null;
     if (userData.trackedActivities !== undefined) updateData.trackedActivities = userData.trackedActivities || null;
+    if (userData.hasSeenWelcomeModal !== undefined) updateData.hasSeenWelcomeModal = userData.hasSeenWelcomeModal;
 
     await updateDoc(userRef, updateData);
   } catch (error) {

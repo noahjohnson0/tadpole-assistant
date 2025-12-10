@@ -4,6 +4,8 @@
  */
 
 import { extractNumberBeforeWord, extractAnyNumber, wordToNumber } from './voice-parsing';
+import { normalizeActivityName, isValidTrackedActivity } from './activities';
+import { TrackedActivity } from '@/types/tracked-activity';
 
 const TIME_UNITS = ['min', 'minute', 'minutes', 'mins', 'hour', 'hours', 'hr', 'hrs', 'second', 'seconds', 'sec', 'secs'];
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
@@ -30,9 +32,9 @@ interface ActivityKeyword {
 type DetectActivityCallback = (activityName: string, quantity?: string, unit?: string) => boolean;
 
 /**
- * Normalize activity name (handle special cases)
+ * Normalize activity name (handle special cases) - local helper
  */
-function normalizeActivityName(activity: string): string {
+function capitalizeActivityName(activity: string): string {
     const lower = activity.toLowerCase();
     if (lower === 'push' || lower === 'pushs') {
         return 'Pushups';
@@ -113,7 +115,7 @@ function parseTimeBasedActivities(
     // Try numeric first
     const timeBasedNumericMatch = text.match(/(?:went\s+for\s+a\s+)?(\d+)\s+(?:min|minute|mins?)\s+(\w+)/i);
     if (timeBasedNumericMatch) {
-        const activityName = normalizeActivityName(timeBasedNumericMatch[2]);
+        const activityName = capitalizeActivityName(timeBasedNumericMatch[2]);
         if (detectActivity(activityName, timeBasedNumericMatch[1], 'mins')) return true;
     }
 
@@ -125,7 +127,7 @@ function parseTimeBasedActivities(
         ).trim();
         const activityMatch = afterMinute.match(/^(\w+)/);
         if (activityMatch) {
-            const activityName = normalizeActivityName(activityMatch[1]);
+            const activityName = capitalizeActivityName(activityMatch[1]);
             if (detectActivity(activityName, timeWrittenMatch.number, 'mins')) return true;
         }
     }
@@ -143,8 +145,12 @@ function parseGeneralPatterns(
     // Try numeric first
     const generalNumericMatch = text.match(/(?:I\s+(?:just\s+)?did|completed|finished)\s+(\d+)\s+(\w+)/i);
     if (generalNumericMatch) {
-        const activityName = normalizeActivityName(generalNumericMatch[2]);
-        if (detectActivity(activityName, generalNumericMatch[1])) return true;
+        const activity = generalNumericMatch[2].toLowerCase();
+        // Don't treat time units as activity names
+        if (!TIME_UNITS.includes(activity)) {
+            const activityName = capitalizeActivityName(activity);
+            if (detectActivity(activityName, generalNumericMatch[1])) return true;
+        }
     }
 
     // Try written numbers in general pattern
@@ -154,8 +160,12 @@ function parseGeneralPatterns(
         if (match) {
             const num = wordToNumber(word);
             if (num) {
-                const activityName = normalizeActivityName(match[1]);
-                if (detectActivity(activityName, num)) return true;
+                const activity = match[1].toLowerCase();
+                // Don't treat time units as activity names
+                if (!TIME_UNITS.includes(activity)) {
+                    const activityName = capitalizeActivityName(activity);
+                    if (detectActivity(activityName, num)) return true;
+                }
             }
         }
     }
@@ -167,8 +177,12 @@ function parseGeneralPatterns(
         const ones = wordToNumber(compoundGeneralMatch[2]);
         if (tens && ones) {
             const total = parseInt(tens) + parseInt(ones);
-            const activityName = normalizeActivityName(compoundGeneralMatch[3]);
-            if (detectActivity(activityName, total.toString())) return true;
+            const activity = compoundGeneralMatch[3].toLowerCase();
+            // Don't treat time units as activity names
+            if (!TIME_UNITS.includes(activity)) {
+                const activityName = capitalizeActivityName(activity);
+                if (detectActivity(activityName, total.toString())) return true;
+            }
         }
     }
 
@@ -187,7 +201,7 @@ function parseSimplePatterns(
     if (simpleNumericMatch) {
         const activity = simpleNumericMatch[2].toLowerCase();
         if (!TIME_UNITS.includes(activity)) {
-            const activityName = normalizeActivityName(activity);
+            const activityName = capitalizeActivityName(activity);
             if (detectActivity(activityName, simpleNumericMatch[1])) return true;
         }
     }
@@ -201,7 +215,7 @@ function parseSimplePatterns(
             if (num) {
                 const activity = match[1].toLowerCase();
                 if (!TIME_UNITS.includes(activity)) {
-                    const activityName = normalizeActivityName(activity);
+                    const activityName = capitalizeActivityName(activity);
                     if (detectActivity(activityName, num)) return true;
                 }
             }
@@ -217,7 +231,7 @@ function parseSimplePatterns(
             const total = parseInt(tens) + parseInt(ones);
             const activity = compoundSimpleMatch[3].toLowerCase();
             if (!TIME_UNITS.includes(activity)) {
-                const activityName = normalizeActivityName(activity);
+                const activityName = capitalizeActivityName(activity);
                 if (detectActivity(activityName, total.toString())) return true;
             }
         }
@@ -237,7 +251,6 @@ function parseFallbackPatterns(
     const activityKeywords: ActivityKeyword[] = [
         { keyword: 'run', unit: 'miles' },
         { keyword: 'walk', unit: 'miles' },
-        { keyword: 'exercise', unit: undefined },
         { keyword: 'situp', unit: 'reps', name: 'Sit-ups' },
         { keyword: 'sit up', unit: 'reps', name: 'Sit-ups' },
         { keyword: 'squat', unit: 'reps' },
@@ -247,7 +260,7 @@ function parseFallbackPatterns(
     for (const { keyword, unit, name } of activityKeywords) {
         if (lowerText.includes(keyword)) {
             const quantity = extractAnyNumber(text);
-            const activityName = name || normalizeActivityName(keyword);
+            const activityName = name || capitalizeActivityName(keyword);
             if (detectActivity(activityName, quantity || undefined, unit)) return true;
         }
     }
@@ -262,16 +275,29 @@ function parseFallbackPatterns(
 export function parseActivity(
     text: string,
     onActivityDetected: (activity: string, quantity?: string, unit?: string, transcribedPhrase?: string) => void,
-    isActivityActive?: (activityName: string) => boolean
+    isActivityActive?: (activityName: string) => boolean,
+    trackedActivities?: TrackedActivity[]
 ): boolean {
     const lowerText = text.toLowerCase();
 
     // Helper function to check and detect activity
     const detectActivity: DetectActivityCallback = (activityName: string, quantity?: string, unit?: string): boolean => {
-        if (isActivityActive && !isActivityActive(activityName)) {
+        // Normalize activity name to tracked activity canonical name if tracked activities are provided
+        let normalizedName = activityName;
+        if (trackedActivities && trackedActivities.length > 0) {
+            normalizedName = normalizeActivityName(activityName, trackedActivities);
+            // Validate that normalized name exists in tracked activities
+            if (!isValidTrackedActivity(normalizedName, trackedActivities)) {
+                // Activity name doesn't match any tracked activity, reject it
+                return false;
+            }
+        }
+
+        // Check if activity is active (if validation function provided)
+        if (isActivityActive && !isActivityActive(normalizedName)) {
             return false;
         }
-        onActivityDetected(activityName, quantity, unit, text);
+        onActivityDetected(normalizedName, quantity, unit, text);
         return true;
     };
 

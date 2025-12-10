@@ -5,6 +5,7 @@ export interface User {
   email: string;
   name?: string;
   trackedActivities?: TrackedActivity[];
+  hasSeenWelcomeModal?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -13,6 +14,7 @@ export interface UserData {
   email: string;
   name?: string;
   trackedActivities?: TrackedActivity[];
+  hasSeenWelcomeModal?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
